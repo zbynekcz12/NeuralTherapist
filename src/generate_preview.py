@@ -94,13 +94,16 @@ def create_interface_preview():
     # Log Panel
     log_y = 620
     log_height = height - log_y - 40  # Ensure positive height
-    draw.rectangle((40, log_y, width-40, log_y + log_height), 
-                  fill='white', outline='#e0e0e0', width=1)
-    draw.text((60, log_y+10), "Systémový log", fill=dark_text, font=title_font)
-    draw.text((60, log_y+50), "18:05:26 - BCI zařízení úspěšně připojeno", 
-              fill=dark_text, font=title_font)
-    draw.text((60, log_y+80), "18:05:27 - Robot připojen a připraven", 
-              fill=dark_text, font=title_font)
+    print(f"Debug - height: {height}, log_y: {log_y}, log_height: {log_height}")
+
+    if log_height > 0:  # Check if we have valid dimensions
+        draw.rectangle((40, log_y, width-40, log_y + log_height), 
+                      fill='white', outline='#e0e0e0', width=1)
+        draw.text((60, log_y+10), "Systémový log", fill=dark_text, font=title_font)
+        draw.text((60, log_y+50), "18:05:26 - BCI zařízení úspěšně připojeno", 
+                  fill=dark_text, font=title_font)
+        draw.text((60, log_y+80), "18:05:27 - Robot připojen a připraven", 
+                  fill=dark_text, font=title_font)
 
     # Save the image
     image.save("generated-preview.png")
