@@ -3,11 +3,9 @@ from bci_reader import BCIReader
 from signal_processor import SignalProcessor
 from robot_controller import RobotController
 from safety_monitor import SafetyMonitor
-from visualization import Visualizer
 from gui import GUI
 from logger import logger
 import threading
-import multiprocessing
 
 app = Flask(__name__)
 # Globální proměnné pro přístup k komponentám
@@ -67,10 +65,6 @@ def get_system_status():
 def start_http_server():
     app.run(host='0.0.0.0', port=5000)
 
-def start_visualization(bci_reader, signal_processor):
-    visualizer = Visualizer()
-    visualizer.start_visualization(bci_reader.get_buffer, signal_processor.extract_features)
-
 def main():
     global bci_reader, signal_processor, robot_controller, safety_monitor
 
@@ -81,15 +75,7 @@ def main():
         robot_controller = RobotController()
         safety_monitor = SafetyMonitor(robot_controller)
 
-        # Spuštění vizualizace v samostatném procesu
-        viz_process = multiprocessing.Process(
-            target=start_visualization,
-            args=(bci_reader, signal_processor)
-        )
-        viz_process.daemon = True
-        viz_process.start()
-
-        # Vytvoření a spuštění GUI
+        # Vytvoření a spuštění GUI v hlavním vlákně
         gui = GUI(bci_reader, robot_controller, safety_monitor)
 
         # Spuštění HTTP serveru v samostatném vlákně
@@ -97,7 +83,7 @@ def main():
         http_thread.daemon = True
         http_thread.start()
 
-        # Hlavní smyčka zpracování
+        # Hlavní smyčka zpracování v samostatném vlákně
         def processing_loop():
             while True:
                 if bci_reader.connected and robot_controller.connected:
@@ -126,6 +112,7 @@ def main():
         process_thread.start()
 
         # Spuštění GUI (hlavní vlákno)
+        logger.info("Spouštím GUI...")
         gui.run()
 
     except Exception as e:
@@ -139,8 +126,6 @@ def main():
             bci_reader.disconnect()
         if robot_controller:
             robot_controller.disconnect()
-        if viz_process.is_alive():
-            viz_process.terminate()
         logger.info("Systém byl vypnut")
 
 if __name__ == "__main__":

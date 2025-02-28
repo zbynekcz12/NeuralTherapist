@@ -1,13 +1,13 @@
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import numpy as np
 from config import config
 
 class Visualizer:
-    def __init__(self):
+    def __init__(self, master=None):
         plt.style.use('dark_background')
         self.fig, (self.ax1, self.ax2) = plt.subplots(2, 1, figsize=(10, 6))
-        self.fig.canvas.manager.set_window_title('BCI Signal Visualization')
 
         # Signal plot
         self.line1, = self.ax1.plot([], [], 'g-', linewidth=1)
@@ -22,6 +22,12 @@ class Visualizer:
         self.ax2.set_ylim(0, 100)
 
         plt.tight_layout()
+
+        if master:
+            self.canvas = FigureCanvasTkAgg(self.fig, master=master)
+            self.canvas.draw()
+            self.canvas.get_tk_widget().pack(fill='both', expand=True)
+            self.animation = None
 
     def update_plot(self, frame, signal_data_func, feature_data_func):
         # Get current data
@@ -41,15 +47,13 @@ class Visualizer:
         return self.line1, *self.bars
 
     def start_visualization(self, signal_data_func, feature_data_func):
-        # Set up animation with fixed frame count
-        frames = 100  # Počet snímků v animaci
-        ani = FuncAnimation(
+        self.animation = FuncAnimation(
             self.fig,
             self.update_plot,
-            frames=frames,
+            frames=None,
             fargs=(signal_data_func, feature_data_func),
             interval=100,
-            blit=True,
-            cache_frame_data=False
+            blit=True
         )
-        plt.show()
+        if not hasattr(self, 'canvas'):
+            plt.show()

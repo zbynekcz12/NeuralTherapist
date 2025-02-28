@@ -1,5 +1,7 @@
 {pkgs}: {
   deps = [
+    pkgs.xorg.libXrender
+    pkgs.xorg.libX11
     pkgs.tk
     pkgs.tcl
     pkgs.qhull
