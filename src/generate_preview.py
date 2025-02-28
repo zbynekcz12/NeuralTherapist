@@ -1,5 +1,5 @@
-from PIL import Image, ImageDraw, ImageFont
 import numpy as np
+from PIL import Image, ImageDraw, ImageFont
 from config import config
 
 def create_interface_preview():
