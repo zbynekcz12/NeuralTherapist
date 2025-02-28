@@ -113,40 +113,103 @@
             position: relative;
             z-index: 1002;
         }
+        /* Tooltip styly */
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+
+        .tooltip .tooltip-text {
+            visibility: hidden;
+            background-color: #2196F3;
+            color: white;
+            text-align: center;
+            padding: 8px;
+            border-radius: 6px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 200px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .tooltip:hover .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>BCI Therapeutic Robot Control</h1>
 
-        <div class="status-panel">
+        <div class="status-panel tooltip">
+            <span class="tooltip-text">Panel zobrazující aktuální stav připojení BCI zařízení a robota</span>
             <h2>Stav systému</h2>
-            <p>BCI: <span id="bci-status">Odpojeno</span></p>
-            <p>Robot: <span id="robot-status">Odpojeno</span></p>
+            <p>BCI: <span id="bci-status" class="tooltip">
+                <span class="tooltip-text">Stav připojení Brain-Computer Interface zařízení</span>
+                Odpojeno
+            </span></p>
+            <p>Robot: <span id="robot-status" class="tooltip">
+                <span class="tooltip-text">Stav připojení robotického asistenta</span>
+                Odpojeno
+            </span></p>
         </div>
 
         <div class="control-panel">
             <h2>Ovládání</h2>
-            <button class="button" onclick="connectBCI()">Připojit BCI</button>
-            <button class="button" onclick="connectRobot()">Připojit Robot</button>
-            <button class="button" onclick="startSystem()">Spustit Systém</button>
-            <button class="emergency-stop" onclick="emergencyStop()">NOUZOVÉ ZASTAVENÍ</button>
+            <button class="button tooltip" onclick="connectBCI()">
+                <span class="tooltip-text">Připojí BCI zařízení pro snímání mozkové aktivity</span>
+                Připojit BCI
+            </button>
+            <button class="button tooltip" onclick="connectRobot()">
+                <span class="tooltip-text">Připojí robotického asistenta pro terapeutické účely</span>
+                Připojit Robot
+            </button>
+            <button class="button tooltip" onclick="startSystem()">
+                <span class="tooltip-text">Spustí celý systém a začne zpracovávat BCI signály</span>
+                Spustit Systém
+            </button>
+            <button class="emergency-stop tooltip" onclick="emergencyStop()">
+                <span class="tooltip-text">Okamžitě zastaví všechny pohyby robota v případě nebezpečí</span>
+                NOUZOVÉ ZASTAVENÍ
+            </button>
 
             <div style="margin-top: 20px;">
-                <label for="max-speed">Maximální rychlost:</label>
-                <input type="range" id="max-speed" min="0" max="1" step="0.1" value="0.5">
+                <label for="max-speed" class="tooltip">
+                    <span class="tooltip-text">Nastavení maximální rychlosti pohybu robota (0-100%)</span>
+                    Maximální rychlost:
+                </label>
+                <input type="range" id="max-speed" min="0" max="1" step="0.1" value="0.5"
+                       class="tooltip">
+                <span class="tooltip-text">Posuňte pro nastavení rychlosti robota</span>
             </div>
         </div>
 
         <div class="visualization">
-            <h2>Vizualizace signálu</h2>
-            <div id="signal-plot"></div>
-            <div id="features-plot"></div>
+            <h2 class="tooltip">
+                <span class="tooltip-text">Vizuální reprezentace BCI signálů a jejich analýza</span>
+                Vizualizace signálu
+            </h2>
+            <div id="signal-plot" class="tooltip">
+                <span class="tooltip-text">Graf zobrazující surový BCI signál v reálném čase</span>
+            </div>
+            <div id="features-plot" class="tooltip">
+                <span class="tooltip-text">Graf zobrazující výkon v jednotlivých frekvenčních pásmech (Theta, Alpha, Beta)</span>
+            </div>
         </div>
 
         <div>
-            <h2>Systémový log</h2>
-            <div id="log"></div>
+            <h2 class="tooltip">
+                <span class="tooltip-text">Historie systémových událostí a stavů</span>
+                Systémový log
+            </h2>
+            <div id="log" class="tooltip">
+                <span class="tooltip-text">Chronologický výpis událostí a stavů systému</span>
+            </div>
         </div>
     </div>
 
@@ -278,9 +341,21 @@
                             ]]
                         });
                     }
+                    updateTooltips(data);
                 })
                 .catch(console.error);
         }
+
+        function updateTooltips(data){
+            if(data && data.features){
+                const featuresPlot = document.getElementById('features-plot');
+                featuresPlot.querySelector('.tooltip-text').textContent = 
+                    `Theta: ${data.features.theta.toFixed(2)}, ` +
+                    `Alpha: ${data.features.alpha.toFixed(2)}, ` +
+                    `Beta: ${data.features.beta.toFixed(2)}`;
+            }
+        }
+
 
         // Aktualizace stavu
         function updateStatus() {
