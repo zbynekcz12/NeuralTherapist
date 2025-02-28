@@ -1,9 +1,8 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, render_template
 from bci_reader import BCIReader
 from signal_processor import SignalProcessor
 from robot_controller import RobotController
 from safety_monitor import SafetyMonitor
-from gui import GUI
 from logger import logger
 import threading
 
@@ -16,15 +15,7 @@ safety_monitor = None
 
 @app.route('/')
 def index():
-    return jsonify({
-        'status': 'running',
-        'message': 'BCI System API je spuštěn. Použijte /system/status pro získání stavu systému.',
-        'endpoints': {
-            '/system/status': 'Získání stavu systému',
-            '/bci/data': 'Získání dat z BCI zařízení',
-            '/robot/command': 'Odeslání příkazu robotovi (POST)'
-        }
-    })
+    return render_template('index.html')
 
 @app.route('/bci/data', methods=['GET'])
 def get_bci_data():
@@ -37,6 +28,22 @@ def get_bci_data():
         'raw_data': buffer.tolist(),
         'features': features
     })
+
+@app.route('/connect/bci', methods=['POST'])
+def connect_bci():
+    if bci_reader:
+        bci_reader.connect()
+        if bci_reader.connected:
+            return jsonify({'message': 'BCI úspěšně připojeno'})
+    return jsonify({'error': 'Nelze připojit BCI'}), 400
+
+@app.route('/connect/robot', methods=['POST'])
+def connect_robot():
+    if robot_controller:
+        robot_controller.connect()
+        if robot_controller.connected:
+            return jsonify({'message': 'Robot úspěšně připojen'})
+    return jsonify({'error': 'Nelze připojit robot'}), 400
 
 @app.route('/robot/command', methods=['POST'])
 def send_robot_command():
@@ -62,8 +69,43 @@ def get_system_status():
         'emergency_stop': safety_monitor.emergency_stop if safety_monitor else True
     })
 
-def start_http_server():
-    app.run(host='0.0.0.0', port=5000)
+@app.route('/system/start', methods=['POST'])
+def start_system():
+    if not (bci_reader and robot_controller and 
+            bci_reader.connected and robot_controller.connected):
+        return jsonify({'error': 'Nejprve připojte BCI a robot'}), 400
+
+    safety_monitor.start_monitoring()
+    return jsonify({'message': 'Systém spuštěn'})
+
+@app.route('/system/emergency_stop', methods=['POST'])
+def trigger_emergency_stop():
+    if safety_monitor:
+        safety_monitor.trigger_emergency_stop()
+        return jsonify({'message': 'Nouzové zastavení aktivováno'})
+    return jsonify({'error': 'Safety monitor není inicializován'}), 500
+
+def processing_loop():
+    while True:
+        if bci_reader and robot_controller and bci_reader.connected and robot_controller.connected:
+            # Čtení a zpracování BCI dat
+            sample = bci_reader.read_sample()
+            if sample:
+                # Zpracování signálu
+                buffer = bci_reader.get_buffer()
+                filtered_signal = signal_processor.filter_signal(buffer)
+                features = signal_processor.extract_features(filtered_signal)
+                command = signal_processor.classify_command(features)
+
+                # Aktualizace monitoru bezpečnosti
+                safety_monitor.update_activity()
+
+                # Provedení příkazu robota, pokud není aktivní nouzové zastavení
+                if not safety_monitor.emergency_stop:
+                    if command == 'forward':
+                        robot_controller.send_command('forward', 0.5)
+                    elif command == 'stop':
+                        robot_controller.send_command('stop', 0.0)
 
 def main():
     global bci_reader, signal_processor, robot_controller, safety_monitor
@@ -75,45 +117,14 @@ def main():
         robot_controller = RobotController()
         safety_monitor = SafetyMonitor(robot_controller)
 
-        # Vytvoření a spuštění GUI v hlavním vlákně
-        gui = GUI(bci_reader, robot_controller, safety_monitor)
-
-        # Spuštění HTTP serveru v samostatném vlákně
-        http_thread = threading.Thread(target=start_http_server)
-        http_thread.daemon = True
-        http_thread.start()
-
-        # Hlavní smyčka zpracování v samostatném vlákně
-        def processing_loop():
-            while True:
-                if bci_reader.connected and robot_controller.connected:
-                    # Čtení a zpracování BCI dat
-                    sample = bci_reader.read_sample()
-                    if sample:
-                        # Zpracování signálu
-                        buffer = bci_reader.get_buffer()
-                        filtered_signal = signal_processor.filter_signal(buffer)
-                        features = signal_processor.extract_features(filtered_signal)
-                        command = signal_processor.classify_command(features)
-
-                        # Aktualizace monitoru bezpečnosti
-                        safety_monitor.update_activity()
-
-                        # Provedení příkazu robota, pokud není aktivní nouzové zastavení
-                        if not safety_monitor.emergency_stop:
-                            if command == 'forward':
-                                robot_controller.send_command('forward', 0.5)
-                            elif command == 'stop':
-                                robot_controller.send_command('stop', 0.0)
-
         # Spuštění zpracování v samostatném vlákně
         process_thread = threading.Thread(target=processing_loop)
         process_thread.daemon = True
         process_thread.start()
 
-        # Spuštění GUI (hlavní vlákno)
-        logger.info("Spouštím GUI...")
-        gui.run()
+        # Spuštění webového serveru
+        logger.info("Spouštím webové rozhraní...")
+        app.run(host='0.0.0.0', port=5000)
 
     except Exception as e:
         logger.critical(f"Chyba systému: {e}")

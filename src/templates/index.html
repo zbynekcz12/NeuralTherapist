@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <title>BCI Therapeutic Robot Control</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        body { 
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f0f0f0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .status-panel {
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .control-panel {
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .visualization {
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .emergency-stop {
+            background-color: #ff4444;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        #log {
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            height: 150px;
+            overflow-y: auto;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>BCI Therapeutic Robot Control</h1>
+        
+        <div class="status-panel">
+            <h2>Stav systému</h2>
+            <p>BCI: <span id="bci-status">Odpojeno</span></p>
+            <p>Robot: <span id="robot-status">Odpojeno</span></p>
+        </div>
+
+        <div class="control-panel">
+            <h2>Ovládání</h2>
+            <button class="button" onclick="connectBCI()">Připojit BCI</button>
+            <button class="button" onclick="connectRobot()">Připojit Robot</button>
+            <button class="button" onclick="startSystem()">Spustit Systém</button>
+            <button class="emergency-stop" onclick="emergencyStop()">NOUZOVÉ ZASTAVENÍ</button>
+            
+            <div style="margin-top: 20px;">
+                <label for="max-speed">Maximální rychlost:</label>
+                <input type="range" id="max-speed" min="0" max="1" step="0.1" value="0.5">
+            </div>
+        </div>
+
+        <div class="visualization">
+            <h2>Vizualizace signálu</h2>
+            <div id="signal-plot"></div>
+            <div id="features-plot"></div>
+        </div>
+
+        <div>
+            <h2>Systémový log</h2>
+            <div id="log"></div>
+        </div>
+    </div>
+
+    <script>
+        // Inicializace grafů
+        const signalPlot = {
+            y: Array(1000).fill(0),
+            type: 'scatter',
+            name: 'BCI Signál'
+        };
+
+        const featuresPlot = {
+            x: ['Theta', 'Alpha', 'Beta'],
+            y: [0, 0, 0],
+            type: 'bar',
+            name: 'Frekvenční pásma'
+        };
+
+        Plotly.newPlot('signal-plot', [signalPlot], {
+            title: 'BCI Signál v reálném čase',
+            yaxis: { range: [-100, 100] }
+        });
+
+        Plotly.newPlot('features-plot', [featuresPlot], {
+            title: 'Výkon frekvenčních pásem',
+            yaxis: { range: [0, 100] }
+        });
+
+        // Aktualizace dat
+        function updateData() {
+            fetch('/bci/data')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.raw_data && data.features) {
+                        Plotly.update('signal-plot', {y: [data.raw_data]});
+                        Plotly.update('features-plot', {
+                            y: [[
+                                data.features.theta,
+                                data.features.alpha,
+                                data.features.beta
+                            ]]
+                        });
+                    }
+                })
+                .catch(console.error);
+        }
+
+        // Aktualizace stavu
+        function updateStatus() {
+            fetch('/system/status')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('bci-status').textContent = 
+                        data.bci_connected ? 'Připojeno' : 'Odpojeno';
+                    document.getElementById('robot-status').textContent = 
+                        data.robot_connected ? 'Připojeno' : 'Odpojeno';
+                })
+                .catch(console.error);
+        }
+
+        // Ovládací funkce
+        function connectBCI() {
+            fetch('/connect/bci', {method: 'POST'})
+                .then(response => response.json())
+                .then(data => {
+                    logMessage(data.message);
+                    updateStatus();
+                })
+                .catch(console.error);
+        }
+
+        function connectRobot() {
+            fetch('/connect/robot', {method: 'POST'})
+                .then(response => response.json())
+                .then(data => {
+                    logMessage(data.message);
+                    updateStatus();
+                })
+                .catch(console.error);
+        }
+
+        function startSystem() {
+            fetch('/system/start', {method: 'POST'})
+                .then(response => response.json())
+                .then(data => {
+                    logMessage(data.message);
+                })
+                .catch(console.error);
+        }
+
+        function emergencyStop() {
+            fetch('/system/emergency_stop', {method: 'POST'})
+                .then(response => response.json())
+                .then(data => {
+                    logMessage('NOUZOVÉ ZASTAVENÍ AKTIVOVÁNO', 'error');
+                })
+                .catch(console.error);
+        }
+
+        function logMessage(message, type = 'info') {
+            const log = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.textContent = `${new Date().toLocaleTimeString()} - ${message}`;
+            entry.style.color = type === 'error' ? 'red' : 'black';
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        // Pravidelné aktualizace
+        setInterval(updateData, 100);
+        setInterval(updateStatus, 1000);
+    </script>
+</body>
+</html>
