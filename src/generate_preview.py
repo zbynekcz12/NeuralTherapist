@@ -91,9 +91,10 @@ def create_interface_preview():
                       fill=primary_color, outline=None)
         draw.text((x, baseline_y+10), label, fill=dark_text, font=title_font)
 
-    # Log Panel - opravené souřadnice
+    # Log Panel
     log_y = 620
-    draw.rectangle((40, log_y, width-40, height-60), 
+    log_height = height - log_y - 40  # Ensure positive height
+    draw.rectangle((40, log_y, width-40, log_y + log_height), 
                   fill='white', outline='#e0e0e0', width=1)
     draw.text((60, log_y+10), "Systémový log", fill=dark_text, font=title_font)
     draw.text((60, log_y+50), "18:05:26 - BCI zařízení úspěšně připojeno", 
