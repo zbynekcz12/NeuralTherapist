@@ -2,6 +2,9 @@
 
 ## Pokročilý BCI systém pro terapeutické aplikace | Advanced BCI System for Therapeutic Applications
 
+### Ukázka systému | System Preview
+![NeuralTherapist Interface](generated-preview.png)
+
 ### 🇨🇿 Česky
 
 #### Popis projektu
