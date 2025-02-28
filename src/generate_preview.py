@@ -82,11 +82,11 @@ def create_interface_preview():
     bar_spacing = 40
     bar_height = 120
     baseline_y = 570
-    for i, (label, height) in enumerate([
+    for i, (label, height_ratio) in enumerate([
         ('Theta', 0.7), ('Alpha', 0.9), ('Beta', 0.5)
     ]):
         x = 60 + plot_margin + i * (bar_width + bar_spacing)
-        bar_h = height * bar_height
+        bar_h = height_ratio * bar_height
         draw.rectangle((x, baseline_y-bar_h, x+bar_width, baseline_y),
                       fill=primary_color, outline=None)
         draw.text((x, baseline_y+10), label, fill=dark_text, font=title_font)
