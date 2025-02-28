@@ -1,3 +1,4 @@
+from flask import Flask, jsonify, request
 from bci_reader import BCIReader
 from signal_processor import SignalProcessor
 from robot_controller import RobotController
@@ -6,69 +7,141 @@ from visualization import Visualizer
 from gui import GUI
 from logger import logger
 import threading
+import multiprocessing
+
+app = Flask(__name__)
+# Globální proměnné pro přístup k komponentám
+bci_reader = None
+signal_processor = None
+robot_controller = None
+safety_monitor = None
+
+@app.route('/')
+def index():
+    return jsonify({
+        'status': 'running',
+        'message': 'BCI System API je spuštěn. Použijte /system/status pro získání stavu systému.',
+        'endpoints': {
+            '/system/status': 'Získání stavu systému',
+            '/bci/data': 'Získání dat z BCI zařízení',
+            '/robot/command': 'Odeslání příkazu robotovi (POST)'
+        }
+    })
+
+@app.route('/bci/data', methods=['GET'])
+def get_bci_data():
+    if not bci_reader or not bci_reader.connected:
+        return jsonify({'error': 'BCI není připojeno'}), 400
+
+    buffer = bci_reader.get_buffer()
+    features = signal_processor.extract_features(buffer)
+    return jsonify({
+        'raw_data': buffer.tolist(),
+        'features': features
+    })
+
+@app.route('/robot/command', methods=['POST'])
+def send_robot_command():
+    if not robot_controller or not robot_controller.connected:
+        return jsonify({'error': 'Robot není připojen'}), 400
+
+    data = request.json
+    command = data.get('command')
+    speed = data.get('speed', 0.0)
+
+    if not safety_monitor.emergency_stop:
+        success = robot_controller.send_command(command, speed)
+        if success:
+            return jsonify({'status': 'success'})
+
+    return jsonify({'error': 'Příkaz se nepodařilo odeslat'}), 400
+
+@app.route('/system/status', methods=['GET'])
+def get_system_status():
+    return jsonify({
+        'bci_connected': bci_reader.connected if bci_reader else False,
+        'robot_connected': robot_controller.connected if robot_controller else False,
+        'emergency_stop': safety_monitor.emergency_stop if safety_monitor else True
+    })
+
+def start_http_server():
+    app.run(host='0.0.0.0', port=5000)
+
+def start_visualization(bci_reader, signal_processor):
+    visualizer = Visualizer()
+    visualizer.start_visualization(bci_reader.get_buffer, signal_processor.extract_features)
 
 def main():
+    global bci_reader, signal_processor, robot_controller, safety_monitor
+
     try:
-        # Initialize components
+        # Inicializace komponent
         bci_reader = BCIReader()
         signal_processor = SignalProcessor()
         robot_controller = RobotController()
         safety_monitor = SafetyMonitor(robot_controller)
-        
-        # Create visualization in a separate thread
-        visualizer = Visualizer()
-        viz_thread = threading.Thread(
-            target=visualizer.start_visualization,
-            args=(bci_reader.get_buffer, signal_processor.extract_features)
+
+        # Spuštění vizualizace v samostatném procesu
+        viz_process = multiprocessing.Process(
+            target=start_visualization,
+            args=(bci_reader, signal_processor)
         )
-        viz_thread.daemon = True
-        
-        # Create and start GUI
+        viz_process.daemon = True
+        viz_process.start()
+
+        # Vytvoření a spuštění GUI
         gui = GUI(bci_reader, robot_controller, safety_monitor)
-        
-        # Start visualization
-        viz_thread.start()
-        
-        # Main processing loop
+
+        # Spuštění HTTP serveru v samostatném vlákně
+        http_thread = threading.Thread(target=start_http_server)
+        http_thread.daemon = True
+        http_thread.start()
+
+        # Hlavní smyčka zpracování
         def processing_loop():
             while True:
                 if bci_reader.connected and robot_controller.connected:
-                    # Read and process BCI data
+                    # Čtení a zpracování BCI dat
                     sample = bci_reader.read_sample()
                     if sample:
-                        # Process signal
+                        # Zpracování signálu
                         buffer = bci_reader.get_buffer()
                         filtered_signal = signal_processor.filter_signal(buffer)
                         features = signal_processor.extract_features(filtered_signal)
                         command = signal_processor.classify_command(features)
-                        
-                        # Update safety monitor
+
+                        # Aktualizace monitoru bezpečnosti
                         safety_monitor.update_activity()
-                        
-                        # Execute robot command if not in emergency stop
+
+                        # Provedení příkazu robota, pokud není aktivní nouzové zastavení
                         if not safety_monitor.emergency_stop:
                             if command == 'forward':
                                 robot_controller.send_command('forward', 0.5)
                             elif command == 'stop':
                                 robot_controller.send_command('stop', 0.0)
-        
-        # Start processing in separate thread
+
+        # Spuštění zpracování v samostatném vlákně
         process_thread = threading.Thread(target=processing_loop)
         process_thread.daemon = True
         process_thread.start()
-        
-        # Start GUI (main thread)
+
+        # Spuštění GUI (hlavní vlákno)
         gui.run()
-        
+
     except Exception as e:
-        logger.critical(f"System error: {e}")
+        logger.critical(f"Chyba systému: {e}")
         raise
     finally:
-        # Cleanup
-        safety_monitor.stop_monitoring()
-        bci_reader.disconnect()
-        robot_controller.disconnect()
-        logger.info("System shutdown complete")
+        # Úklid
+        if safety_monitor:
+            safety_monitor.stop_monitoring()
+        if bci_reader:
+            bci_reader.disconnect()
+        if robot_controller:
+            robot_controller.disconnect()
+        if viz_process.is_alive():
+            viz_process.terminate()
+        logger.info("Systém byl vypnut")
 
 if __name__ == "__main__":
     main()

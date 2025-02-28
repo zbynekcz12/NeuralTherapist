@@ -1,3 +1,4 @@
+import numpy as np
 import serial
 import time
 from config import config
@@ -39,19 +40,19 @@ class RobotController:
             current_time = time.time()
             dt = current_time - self.last_command_time
             max_speed_change = config.MAX_ACCELERATION * dt
-            
+
             target_speed = min(speed, config.MAX_SPEED)
             speed_change = target_speed - self.current_speed
             speed_change = np.clip(speed_change, 
-                                 -max_speed_change,
-                                 max_speed_change)
-            
+                                -max_speed_change,
+                                max_speed_change)
+
             self.current_speed += speed_change
-            
+
             # Format: <command>,<speed>\n
             command_str = f"{command},{self.current_speed:.2f}\n"
             self.port.write(command_str.encode())
-            
+
             self.last_command_time = current_time
             logger.info(f"Sent robot command: {command_str.strip()}")
             return True
