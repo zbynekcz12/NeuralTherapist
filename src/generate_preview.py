@@ -1,6 +1,6 @@
 from PIL import Image, ImageDraw, ImageFont
 import numpy as np
-import os
+from config import config
 
 def create_interface_preview():
     # Create a new image with a light gray background
@@ -91,13 +91,14 @@ def create_interface_preview():
                       fill=primary_color, outline=None)
         draw.text((x, baseline_y+10), label, fill=dark_text, font=title_font)
 
-    # Log Panel
-    draw.rectangle((40, 620, width-40, height-40), 
+    # Log Panel - opravené souřadnice
+    log_y = 620
+    draw.rectangle((40, log_y, width-40, height-60), 
                   fill='white', outline='#e0e0e0', width=1)
-    draw.text((60, 630), "Systémový log", fill=dark_text, font=title_font)
-    draw.text((60, 670), "18:05:26 - BCI zařízení úspěšně připojeno", 
+    draw.text((60, log_y+10), "Systémový log", fill=dark_text, font=title_font)
+    draw.text((60, log_y+50), "18:05:26 - BCI zařízení úspěšně připojeno", 
               fill=dark_text, font=title_font)
-    draw.text((60, 700), "18:05:27 - Robot připojen a připraven", 
+    draw.text((60, log_y+80), "18:05:27 - Robot připojen a připraven", 
               fill=dark_text, font=title_font)
 
     # Save the image
